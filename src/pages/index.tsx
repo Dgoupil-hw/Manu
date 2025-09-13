@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Download, Eye, EyeOff, PartyPopper, Play, Plus, Settings, Share2, Upload, Wand2 } from "lucide-react";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // Compat Next.js / Vite / fallback window
 const SB_URL = "https://myxfrmhiwzdeifihoiep.supabase.co";
@@ -39,7 +39,8 @@ const DEFAULT_STATE = {
   anecdotes: [] as Anecdote[],
 };
 
-const supabase = SB_URL && SB_KEY ? createClient(SB_URL, SB_KEY) : null as any;
+const supabase: SupabaseClient | null =
+  SB_URL && SB_KEY ? createClient(SB_URL, SB_KEY) : null;
 const EVENT_ID = "default"; // ou un id par soirée
 
 function getDeviceId() {
@@ -61,7 +62,7 @@ function useToast() {
 }
 
 // ---------------- Types ----------------
-interface Anecdote {
+interface Anecdote { 
   id: string;
   text: string;
   author: string;
@@ -69,7 +70,7 @@ interface Anecdote {
   anonymous?: boolean;
   category?: string;
   approved: boolean;
-  createdAt: string; // ISO
+  created_at: Date; // ISO
   reactions?: Record<string, number>; // emoji -> count
 }
 
@@ -146,13 +147,13 @@ function exportJSON(data: unknown, filename: string) {
 }
 
 function exportCSV(anecdotes: Anecdote[], filename: string) {
-  const header = ["id", "text", "author", "approved", "createdAt", ...EMOJIS];
+  const header = ["id", "text", "author", "approved", "created_at", ...EMOJIS];
   const rows = anecdotes.map(a => [
     a.id,
     JSON.stringify(a.text).slice(1,-1),
     JSON.stringify(a.author).slice(1,-1),
     a.approved,
-    a.createdAt,
+    a.created_at,
     ...EMOJIS.map(e => a.reactions?.[e] ?? 0),
   ]);
   const content = [header.join(","), ...rows.map(r => r.join(","))].join("\n");
@@ -188,7 +189,7 @@ async function fetchAnecdotesFromServer(requireApproval: boolean, isAdmin: boole
   if (error) { console.error(error); return []; }
 
   // Récupère toutes les réactions des anecdotes visibles et agrège côté client
-  const ids = rows?.map(r => r.id) ?? [];
+  const ids = rows?.map((r : Anecdote) => r.id) ?? [];
   const { data: reacts, error: rerr } = ids.length
     ? await supabase.from("reactions").select("anecdote_id,emoji").in("anecdote_id", ids)
     : { data: [], error: null };
@@ -201,12 +202,12 @@ async function fetchAnecdotesFromServer(requireApproval: boolean, isAdmin: boole
     }
   }
 
-  return (rows ?? []).map(r => ({
+  return (rows ?? []).map((r : Anecdote) => ({
     id: r.id,
     text: r.text,
     author: r.author,
     approved: r.approved,
-    createdAt: r.created_at,
+    created_at: r.created_at,
     reactions: map[r.id] ?? {},
     anonymous: false,
     category: "general",
@@ -225,7 +226,7 @@ async function submitAnecdoteServer(payload: { text: string; author: string }, r
   if (error) throw error;
   return {
     id: data.id, text: data.text, author: data.author,
-    approved: data.approved, createdAt: data.created_at,
+    approved: data.approved, created_at: data.created_at,
     reactions: {}, anonymous: false, category: "general"
   } as Anecdote;
 }
@@ -306,7 +307,7 @@ export default function App() {
       .filter(a => totalReactions(a) >= minReactions)
       .filter(a => !noMyReactions || !mounted || EMOJIS.every(e => !hasReacted(a.id, e)))
       .sort((a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
   }, [state, search, isAdmin, minReactions, meAuthor, onlyMine, noMyReactions, mounted]);
 
@@ -321,7 +322,7 @@ export default function App() {
         return a.text.toLowerCase().includes(q) || a.author.toLowerCase().includes(q);
       })
       .filter(a => totalReactions(a) >= minReactions)
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }, [state, isAdmin, search, minReactions]);
   
   const leaderboard = useMemo(() => {
@@ -334,7 +335,7 @@ export default function App() {
     return [...pool].sort(
       (a, b) =>
         totalReactions(b) - totalReactions(a) ||
-        (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     );
   }, [state, isAdmin, meAuthor]);
 
@@ -413,7 +414,7 @@ export default function App() {
       category: "general",
       reactions: {},
       approved: !state.settings.requireApproval,
-      createdAt: new Date().toISOString(),
+      created_at: new Date(),
     };
 
     if (supabase) {
@@ -677,7 +678,7 @@ export default function App() {
                 ) : (
                   <div className="grid md:grid-cols-2 gap-4" >
                     {filteredAnecdotes.map(a => (
-                      <AnecdoteCard key={a.id} a={a} showAuthor={showAuthors} onReact={react} onEdit={editAnecdote} showClassment={false} classment={-1}/>
+                      <AnecdoteCard key={a.id} a={a} showAuthor={showAuthors} onReact={react} onEdit={editAnecdote} showClassment={false} classment={-1} anecdotes={state.anecdotes}/>
                     ))}
                   </div>
                 )}
@@ -689,7 +690,7 @@ export default function App() {
                 ) : (
                   <div className="grid md:grid-cols-2 gap-4">
                     {leaderboard.map((a, idx) => (
-                        <AnecdoteCard key={a.id} a={a} showAuthor={showAuthors} onReact={react} onEdit={editAnecdote} showClassment={true} classment={idx}/>
+                        <AnecdoteCard key={a.id} a={a} showAuthor={showAuthors} onReact={react} onEdit={editAnecdote} showClassment={true} classment={idx} anecdotes={state.anecdotes}/>
                     ))}
                   </div>
                 )}
@@ -792,7 +793,8 @@ function ReactionBar({ a, onReact }: { a: Anecdote; onReact: (id: string, emoji:
   );
 }
 
-function AnecdoteCard({ a, showAuthor, onReact, onEdit, showClassment, classment }: { a: Anecdote; showAuthor: boolean; onReact: (id: string, emoji: string, actif: boolean) => void; onEdit: (id: string, newText: string) => void; showClassment: boolean; classment: number }) {
+function AnecdoteCard({ a, showAuthor, onReact, onEdit, showClassment, classment, anecdotes }: { a: Anecdote; showAuthor: boolean; onReact: (id: string, emoji: string, actif: boolean) => void; onEdit: (id: string, newText: string) => void; showClassment: boolean; classment: number; anecdotes : Anecdote[] }) {
+console.log(a);
   return (
     <Card className="rounded-2xl shadow-sm">
       <CardHeader>
@@ -808,7 +810,7 @@ function AnecdoteCard({ a, showAuthor, onReact, onEdit, showClassment, classment
         {!showClassment && (
           <div className="flex items-center gap-2">
             <div className="ml-auto flex items-center gap-2 text-sm text-slate-500">
-              <span suppressHydrationWarning>{new Date(a.createdAt).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris" })}</span>
+              <span suppressHydrationWarning>{new Date(a.created_at).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris" })}</span>
             </div>
           </div>
         )}
@@ -833,7 +835,7 @@ function AnecdoteCard({ a, showAuthor, onReact, onEdit, showClassment, classment
                   <DialogTitle>Qui a écrit cette anecdote ?</DialogTitle>
                   <DialogDescription>Fais une hypothèse dans la liste.</DialogDescription>
                 </DialogHeader>
-                <GuessAndReveal a={a} showAuthor={showAuthor} />
+                <GuessAndReveal a={a} showAuthor={showAuthor} anecdotes={anecdotes}/>
               </DialogContent>
             </Dialog>
           )}
@@ -875,11 +877,14 @@ function EditOwnAnecdote({ a, onEdit }: { a: Anecdote; onEdit: (id: string, newT
   );
 }
 
-function GuessAndReveal({ a, showAuthor }: { a: Anecdote; showAuthor: boolean }) {
+function GuessAndReveal({ a, showAuthor, anecdotes }: { a: Anecdote; showAuthor: boolean; anecdotes : Anecdote[] }) {
   const [guess, setGuess] = useState<string>(INVITES[0] ?? "");
   const [revealed, setRevealed] = useState<boolean>(showAuthor);
   const correct = guess.trim().toLowerCase() === a.author.toLowerCase();
-  const other = state.anecdotes
+  const allNamesSorted = Array.from(new Set([
+    ...anecdotes.map(a => a.author?.trim()).filter(Boolean),
+    ...INVITES
+  ])).sort();
   return (
     <div className="space-y-3">
       <div className="grid gap-2">
@@ -889,7 +894,7 @@ function GuessAndReveal({ a, showAuthor }: { a: Anecdote; showAuthor: boolean })
             <SelectValue placeholder="Choisis un invité" />
           </SelectTrigger>
           <SelectContent>
-            {INVITES.map(n => (<SelectItem key={n} value={n}>{n}</SelectItem>))}
+            {allNamesSorted.map(n => (<SelectItem key={n} value={n}>{n}</SelectItem>))}
           </SelectContent>
         </Select>
       </div>
@@ -1077,7 +1082,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 // ---------------- Lightweight Runtime Tests ----------------
 console.assert(Array.isArray(INVITES) && INVITES.includes("David"), "INVITES should include David");
 (function testAddReactionPure(){
-  const a:Anecdote = { id:"t1", text:"x", author:"y", approved:true, createdAt:new Date().toISOString(), reactions:{} };
+  const a:Anecdote = { id:"t1", text:"x", author:"y", approved:true, created_at:new Date(), reactions:{} };
   const emoji = "👍"; const before = a.reactions?.[emoji] ?? 0; a.reactions = { ...a.reactions, [emoji]: (a.reactions?.[emoji] ?? 0) + 1 };
   console.assert((a.reactions?.[emoji] ?? 0) === before + 1, "Reaction increment failed");
 })();
