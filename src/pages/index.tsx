@@ -15,6 +15,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Separator } from "@/components/ui/separator";
 import { Download, Eye, EyeOff, PartyPopper, Play, Plus, Settings, Share2, Upload, Wand2 } from "lucide-react";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import QRCode from "react-qr-code";
+
 
 // Compat Next.js / Vite / fallback window
 const SB_URL = "https://myxfrmhiwzdeifihoiep.supabase.co";
@@ -64,6 +66,7 @@ function useToast() {
 // ---------------- Types ----------------
 interface Anecdote { 
   id: string;
+  device_id: string;
   text: string;
   author: string;
   // legacy fields kept for migration compatibility
@@ -180,12 +183,10 @@ function totalReactions(a: Anecdote) {
 async function fetchAnecdotesFromServer(requireApproval: boolean, isAdmin: boolean): Promise<Anecdote[]> {
   if (!supabase) return [];
   const base = supabase.from("anecdotes")
-    .select("id,text,author,approved,created_at")
+    .select("id,text,author,approved,created_at,device_id")
     .eq("event_id", EVENT_ID);
 
-  const { data: rows, error } =
-    requireApproval && !isAdmin ? await base.eq("approved", true)
-                                : await base;
+  const { data: rows, error } = await base; 
   if (error) { console.error(error); return []; }
 
   // Récupère toutes les réactions des anecdotes visibles et agrège côté client
@@ -211,6 +212,7 @@ async function fetchAnecdotesFromServer(requireApproval: boolean, isAdmin: boole
     reactions: map[r.id] ?? {},
     anonymous: false,
     category: "general",
+    device_id: r.device_id
   }));
 }
 
@@ -289,21 +291,20 @@ export default function App() {
   const mounted = useMounted();
 
   const filteredAnecdotes = useMemo(() => {
-    const mine = meAuthor ? meAuthor.toLowerCase() : "";
+    const mine = getDeviceId().toLowerCase();
     const pool = state.anecdotes.filter(a =>
       a.approved ||
       !state.settings.requireApproval ||
       isAdmin ||
-      (mine && a.author.toLowerCase() === mine)  // <= inclure mes non validées
+      (mine && a.device_id.toLowerCase() === mine)  // <= inclure mes non validées
     );
-  
     return pool
       .filter(a => {
         const q = search.trim().toLowerCase();
         if (!q) return true;
         return a.text.toLowerCase().includes(q) || a.author.toLowerCase().includes(q);
       })
-      .filter(a => !onlyMine || (meAuthor && a.author.toLowerCase() === meAuthor.toLowerCase()))
+      .filter(a => !onlyMine || (mine && a.device_id.toLowerCase() === mine.toLowerCase()))
       .filter(a => totalReactions(a) >= minReactions)
       .filter(a => !noMyReactions || !mounted || EMOJIS.every(e => !hasReacted(a.id, e)))
       .sort((a, b) =>
@@ -354,27 +355,26 @@ export default function App() {
     if (!supabase) return;
     let mounted = true;
 
+    // 1) Snapshoot initial (selon requireApproval / admin)
     (async () => {
-      console.log("ok0");
       const items = await fetchAnecdotesFromServer(state.settings.requireApproval, isAdmin);
       if (mounted) setState(s => ({ ...s, anecdotes: items }));
     })();
 
+    // 2) Abonnements Realtime incrémentaux
     const channel = supabase
       .channel("anecparty")
       .on("postgres_changes", { event: "*", schema: "public", table: "anecdotes" }, () => {
         fetchAnecdotesFromServer(state.settings.requireApproval, isAdmin).then(items =>
           
           {
-            console.log("ok"); 
             setState(s => ({ ...s, anecdotes: items }))
-          }
+          } 
         );
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "reactions" }, () => {
         fetchAnecdotesFromServer(state.settings.requireApproval, isAdmin).then(items =>
           {
-            console.log("ok2");
             setState(s => ({ ...s, anecdotes: items }));
           }
         );
@@ -382,7 +382,9 @@ export default function App() {
       .subscribe();
 
     return () => { mounted = false; supabase.removeChannel(channel); };
+
   }, [isAdmin, state.settings.requireApproval]);
+
 
 
   // party mode rotation
@@ -415,6 +417,7 @@ export default function App() {
       reactions: {},
       approved: !state.settings.requireApproval,
       created_at: new Date(),
+      device_id: getDeviceId()
     };
 
     if (supabase) {
@@ -456,7 +459,6 @@ export default function App() {
         const current = a.reactions?.[emoji] ?? 0;
         if(hasReacted(id, emoji) && actif) {
           // OFF
-          console.log("unmark");
           unmarkReacted(id, emoji);
           const next = Math.max(0, current - 1);
           const nextReac: Record<string, number> = { ...(a.reactions ?? {}), [emoji]: next };
@@ -464,7 +466,6 @@ export default function App() {
           return { ...a, reactions: nextReac };
         } else if(!hasReacted(id, emoji) && !actif){
           // ON
-          console.log("mark");
           markReacted(id, emoji);
           return { ...a, reactions: { ...(a.reactions ?? {}), [emoji]: current + 1 } };
         }
@@ -694,7 +695,7 @@ export default function App() {
                     ))}
                   </div>
                 )}
-              </TabsContent>
+              </TabsContent> 
 
               <TabsContent value="party" className="mt-4">
                 {partyItems.length === 0 ? (
@@ -706,7 +707,7 @@ export default function App() {
 
               {isAdmin && (
                 <TabsContent value="admin" className="mt-4">
-                  <AdminPanel items={state.anecdotes} onApprove={approve} onRemove={remove} requireApproval={state.settings.requireApproval} />
+                  <AdminPanel items={state.anecdotes} onApprove={approve} onRemove={remove} requireApproval={state.settings.requireApproval} onEdit={editAnecdote}/>
                 </TabsContent>
               )}
             </Tabs>
@@ -716,9 +717,12 @@ export default function App() {
         )}
       </main>
 
-      <footer className="max-w-5xl mx-auto px-4 pb-10 text-center text-xs text-slate-400">
+      <footer className="max-w-5xl mx-auto px-4 text-center text-xs text-slate-400">
         Fait avec ❤️ pour une soirée mémorable.
       </footer>
+      <div className="p-4 bg-white rounded-xl justify-center flex">
+          <QRCode value={"https://manu-kappa-virid.vercel.app/"} size={128} />
+        </div>
     </div>
   );
 }
@@ -794,7 +798,6 @@ function ReactionBar({ a, onReact }: { a: Anecdote; onReact: (id: string, emoji:
 }
 
 function AnecdoteCard({ a, showAuthor, onReact, onEdit, showClassment, classment, anecdotes }: { a: Anecdote; showAuthor: boolean; onReact: (id: string, emoji: string, actif: boolean) => void; onEdit: (id: string, newText: string) => void; showClassment: boolean; classment: number; anecdotes : Anecdote[] }) {
-console.log(a);
   return (
     <Card className="rounded-2xl shadow-sm">
       <CardHeader>
@@ -823,7 +826,7 @@ console.log(a);
         <div className="flex flex-col gap-3">
           <ReactionBar a={a} onReact={onReact} />
           {!showClassment && (
-            <EditOwnAnecdote a={a} onEdit={onEdit} />
+            <EditOwnAnecdote a={a} onEdit={onEdit} isAdmin={false}/>
           )}
           {!showClassment && (
             <Dialog>
@@ -842,38 +845,6 @@ console.log(a);
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function EditOwnAnecdote({ a, onEdit }: { a: Anecdote; onEdit: (id: string, newText: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState(a.text);
-  const last = (() => { try { return localStorage.getItem('lastAuthor') || ""; } catch { return ""; } })();
-  const canEdit = last && last.toLowerCase() === a.author.toLowerCase();
-
-  if (!canEdit) return null;
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">Modifier</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Modifier ton anecdote</DialogTitle>
-          <DialogDescription>
-            {`En enregistrant, elle repart en validation si la modération est activée.`}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3">
-          <Textarea rows={5} value={text} onChange={(e)=>setText(e.target.value)} />
-          <div className="flex gap-2">
-            <Button onClick={()=>{ onEdit(a.id, text.trim()); setOpen(false); }}>Enregistrer</Button>
-            <Button variant="outline" onClick={()=>setOpen(false)}>Annuler</Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -944,10 +915,9 @@ function PartyCarousel({ items, index, setIndex, showAuthor, seconds, onReact }:
   );
 }
 
-function AdminPanel({ items, onApprove, onRemove, requireApproval }: { items: Anecdote[]; onApprove: (id: string, v: boolean) => void; onRemove: (id: string) => void; requireApproval: boolean; }) {
+function AdminPanel({ items, onApprove, onRemove, requireApproval, onEdit }: { items: Anecdote[]; onApprove: (id: string, v: boolean) => void; onRemove: (id: string) => void; requireApproval: boolean; onEdit: (id: string, newText: string) => void; }) {
   const pending = items.filter(a => !a.approved);
   const approved = items.filter(a => a.approved);
-
   return (
     <div className="grid gap-6">
       {requireApproval && (
@@ -964,6 +934,7 @@ function AdminPanel({ items, onApprove, onRemove, requireApproval }: { items: An
                   <CardContent>
                     <div className="flex items-center gap-2">
                       <Button onClick={() => onApprove(a.id, true)}>Approuver</Button>
+                      <EditOwnAnecdote a={a} onEdit={onEdit} isAdmin={true} />
                       <Button variant="destructive" onClick={() => onRemove(a.id)}>Supprimer</Button>
                     </div>
                   </CardContent>
@@ -987,6 +958,7 @@ function AdminPanel({ items, onApprove, onRemove, requireApproval }: { items: An
                 <CardContent>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={() => onApprove(a.id, false)}>Dépublier</Button>
+                    <EditOwnAnecdote a={a} onEdit={onEdit} isAdmin={true} />
                     <Button variant="destructive" onClick={() => onRemove(a.id)}>Supprimer</Button>
                   </div>
                 </CardContent>
@@ -996,6 +968,36 @@ function AdminPanel({ items, onApprove, onRemove, requireApproval }: { items: An
         )}
       </section>
     </div>
+  );
+}
+function EditOwnAnecdote({ a, onEdit, isAdmin }: { a: Anecdote; onEdit: (id: string, newText: string) => void, isAdmin: boolean;  }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(a.text);
+  const last = (() => { try { return localStorage.getItem('device_id') || ""; } catch { return ""; } })();
+  const canEdit = last && last.toLowerCase() === a.device_id.toLowerCase();
+
+  if (!isAdmin && !canEdit) return null;
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>  
+      <DialogTrigger asChild> 
+        <Button variant="outline">Modifier</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Modifier ton anecdote</DialogTitle>
+          <DialogDescription>
+            {`En enregistrant, elle repart en validation si la modération est activée.`}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <Textarea rows={5} value={text} onChange={(e)=>setText(e.target.value)} />
+          <div className="flex gap-2">
+            <Button onClick={()=>{ onEdit(a.id, text.trim()); setOpen(false); }}>Enregistrer</Button>
+            <Button variant="outline" onClick={()=>setOpen(false)}>Annuler</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1035,7 +1037,7 @@ function ShareHint() {
   );
 }
 
-function QRCodeButton() {
+function QRCodeButton() { 
   const [open, setOpen] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -1058,9 +1060,12 @@ function QRCodeButton() {
           <DialogTitle>QR code</DialogTitle>
           <DialogDescription>Astuce: remplace ce QR factice par la lib <code>qrcode</code> si tu déploies.</DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col items-center gap-3">
+        {/* <div className="flex flex-col items-center gap-3">
           <canvas ref={canvasRef} width={512} height={512} className="rounded-xl border"/>
           <Button onClick={download}><Download className="w-4 h-4 mr-1"/>Télécharger</Button>
+        </div> */} 
+        <div className="p-4 bg-white rounded-xl">
+          <QRCode value={"https://manu-kappa-virid.vercel.app/"} />
         </div>
       </DialogContent>
     </Dialog>
@@ -1082,7 +1087,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 // ---------------- Lightweight Runtime Tests ----------------
 console.assert(Array.isArray(INVITES) && INVITES.includes("David"), "INVITES should include David");
 (function testAddReactionPure(){
-  const a:Anecdote = { id:"t1", text:"x", author:"y", approved:true, created_at:new Date(), reactions:{} };
+  const a:Anecdote = { id:"t1", text:"x", author:"y", approved:true, created_at:new Date(), reactions:{}, device_id:"" };
   const emoji = "👍"; const before = a.reactions?.[emoji] ?? 0; a.reactions = { ...a.reactions, [emoji]: (a.reactions?.[emoji] ?? 0) + 1 };
   console.assert((a.reactions?.[emoji] ?? 0) === before + 1, "Reaction increment failed");
 })();
