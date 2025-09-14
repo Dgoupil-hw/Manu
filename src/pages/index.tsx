@@ -291,12 +291,12 @@ export default function App() {
   const mounted = useMounted();
 
   const filteredAnecdotes = useMemo(() => {
-    const mine = getDeviceId().toLowerCase();
+    const mine = getDeviceId();
     const pool = state.anecdotes.filter(a =>
       a.approved ||
       !state.settings.requireApproval ||
       isAdmin ||
-      (mine && a.device_id.toLowerCase() === mine)  // <= inclure mes non validées
+      (mine && a.device_id === mine)  // <= inclure mes non validées
     );
     return pool
       .filter(a => {
@@ -304,7 +304,7 @@ export default function App() {
         if (!q) return true;
         return a.text.toLowerCase().includes(q) || a.author.toLowerCase().includes(q);
       })
-      .filter(a => !onlyMine || (mine && a.device_id.toLowerCase() === mine.toLowerCase()))
+      .filter(a => !onlyMine || (mine && a.device_id === mine))
       .filter(a => totalReactions(a) >= minReactions)
       .filter(a => !noMyReactions || !mounted || EMOJIS.every(e => !hasReacted(a.id, e)))
       .sort((a, b) =>
@@ -974,7 +974,7 @@ function EditOwnAnecdote({ a, onEdit, isAdmin }: { a: Anecdote; onEdit: (id: str
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(a.text);
   const last = (() => { try { return localStorage.getItem('device_id') || ""; } catch { return ""; } })();
-  const canEdit = last && last.toLowerCase() === a.device_id.toLowerCase();
+  const canEdit = last && last === a.device_id;
 
   if (!isAdmin && !canEdit) return null;
   return (
