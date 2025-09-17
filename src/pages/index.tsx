@@ -994,7 +994,7 @@ function AdminPanel({ items, onApprove, onRemove, requireApproval, onEdit }: { i
   const approved = items.filter(a => a.approved);
   return (
     <div className="grid gap-6">
-      {requireApproval && (
+      {(
         <section>
           <h3 className="font-semibold mb-3">En attente ({pending.length})</h3>
           {pending.length === 0 ? <p className="text-sm text-slate-500">Rien à modérer.</p> : (
