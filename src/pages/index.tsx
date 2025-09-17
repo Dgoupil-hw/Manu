@@ -130,7 +130,7 @@ function saveState(s: { settings: SettingsType; anecdotes: Anecdote[] }) {
 
 // ---------------- Utils ----------------
 const INVITES = [
-  "Didier","Brigitte","Raymond","Maryvonne","Manuel","Séverine","David","Caroline","Mathieu G","Lucie","Sylvain","Céline","Max","Jennifer","Damien B","Matthieu H","Stéphane","Alex","Romain","Anne So","Seb","Anne-Charlotte","Julie","Damien","Florian","Marie","Morgane","Paul","Vincent"
+  "Didier","Brigitte","Raymond","Maryvonne","Manuel","Séverine","David","Caroline","Mathieu G","Lucie","Sylvain","Céline","Bruno","Nadège","Laurent","Marie-Annick","Max","Jennifer","Alex","Marie","Manu","Anne So","Seb","Stéphane","Aurélie","Anne-Charlotte","Vincent","Anne","Damien","Florian","Julie","Damien B","Morgane","Paul","Matthieu H","Claire"
 ].sort((a,b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 
 const EMOJIS = ["👍","😂","😯","❤️"]; // réactions disponibles
@@ -511,18 +511,18 @@ export default function App() {
   return (
     <div suppressHydrationWarning={true} className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-800">
       <header className="sticky top-0 z-20 backdrop-blur bg-white/70 border-b">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-          <PartyPopper className="w-6 h-6" />
-          <h1 className="font-bold text-xl md:text-2xl flex-1 truncate whitespace-nowrap">
+        <div className="max-w-5xl mx-auto px-4 py-3 bigf items-center gap-3">
+          <h1 className="font-bold text-xl md:text-2xl flex-1 truncate whitespace-nowrap smT">
             {state.settings.eventTitle}
           </h1>
-          <div className="flex items-center gap-2 ml-2">
-            <Button variant={partyMode ? "secondary" : "default"} size="sm" onClick={() => setPartyMode(p => !p)}>
+          <div className="bigf items-center gap-2 ml-2 smT">
+            <Button className="smT" variant={partyMode ? "secondary" : "default"} size="sm" onClick={() => setPartyMode(p => !p)}>
               <Play className="w-4 h-4 mr-1" /> Mode soirée
             </Button>
+            <ShareHint/>
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="outline" size="sm"><Settings className="w-4 h-4 mr-1"/></Button>
+                <Button className="smT" variant="outline" size="sm" style={{backgroundColor: '#ffffffff', color: '#000000ff'}}><Settings className="w-4 h-4 mr-1"/></Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-full sm:max-w-md">
                 <SheetHeader>
@@ -668,7 +668,7 @@ export default function App() {
     
                   <Input placeholder="Rechercher…" value={search} onChange={(e) => setSearch(e.target.value)} className="md:w-72"/>
                   {isAdmin && (
-                    <Button variant="outline" size="icon" onClick={() => setShowAuthors(s => !s)} title={showAuthors ? "Masquer auteurs" : "Afficher auteurs"}>
+                    <Button variant="outline" size="icon" onClick={() => setShowAuthors(s => !s)} title={showAuthors ? "Masquer auteurs" : "Afficher auteurs"} style={{backgroundColor: '#ffffffff', color: '#000000ff'}}>
                       {showAuthors ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
                     </Button>
                   )}
@@ -712,7 +712,6 @@ export default function App() {
               )}
             </Tabs>
 
-            <ShareHint />
           </>
         )}
       </main>
@@ -831,7 +830,7 @@ function AnecdoteCard({ a, showAuthor, onReact, onEdit, showClassment, classment
           {!showClassment && (
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline">Deviner l’auteur</Button>
+                <Button variant="outline" style={{backgroundColor: '#ffffffff', color: '#000000ff'}}>Deviner l’auteur</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -905,7 +904,7 @@ function PartyCarousel({ items, index, setIndex, showAuthor, seconds, onReact }:
         {showAuthor ? <>— <strong>{a.author}</strong></> : <span className="italic text-slate-400">Auteur caché</span>}
       </div>
       <div className="mt-6 flex items-center justify-between">
-        <Button variant="outline" onClick={() => setIndex((index - 1 + items.length) % items.length)}>Précédent</Button>
+        <Button variant="outline" onClick={() => setIndex((index - 1 + items.length) % items.length)} style={{backgroundColor: '#ffffffff', color: '#000000ff'}}>Précédent</Button>
         <Button onClick={() => setIndex((index + 1) % items.length)}>Suivant</Button>
       </div>
       <div className="mt-6">
@@ -957,7 +956,7 @@ function AdminPanel({ items, onApprove, onRemove, requireApproval, onEdit }: { i
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => onApprove(a.id, false)}>Dépublier</Button>
+                    <Button variant="outline" onClick={() => onApprove(a.id, false)} style={{backgroundColor: '#ffffffff', color: '#000000ff'}}>Dépublier</Button>
                     <EditOwnAnecdote a={a} onEdit={onEdit} isAdmin={true} />
                     <Button variant="destructive" onClick={() => onRemove(a.id)}>Supprimer</Button>
                   </div>
@@ -980,7 +979,7 @@ function EditOwnAnecdote({ a, onEdit, isAdmin }: { a: Anecdote; onEdit: (id: str
   return (
     <Dialog open={open} onOpenChange={setOpen}>  
       <DialogTrigger asChild> 
-        <Button variant="outline">Modifier</Button>
+        <Button variant="outline" style={{backgroundColor: '#ffffffff', color: '#000000'}}>Modifier</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -993,7 +992,7 @@ function EditOwnAnecdote({ a, onEdit, isAdmin }: { a: Anecdote; onEdit: (id: str
           <Textarea rows={5} value={text} onChange={(e)=>setText(e.target.value)} />
           <div className="flex gap-2">
             <Button onClick={()=>{ onEdit(a.id, text.trim()); setOpen(false); }}>Enregistrer</Button>
-            <Button variant="outline" onClick={()=>setOpen(false)}>Annuler</Button>
+            <Button variant="outline" onClick={()=>setOpen(false)} style={{backgroundColor: '#ffffffff', color: '#000000ff'}}>Annuler</Button>
           </div>
         </div>
       </DialogContent>
@@ -1022,18 +1021,19 @@ function ShareHint() {
     } catch {}
   };
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><Share2 className="w-4 h-4"/>Inviter les invités</CardTitle>
-        <CardDescription>Partage le lien ou affiche un QR code imprimé.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2">
-          <Button onClick={share}>Partager le lien</Button>
-          <QRCodeButton />
-        </div>
-      </CardContent>
-    </Card>
+      <Button className="smT" size="sm" onClick={share}><Share2 className="w-4 h-4"/>Partager</Button>
+    // <Card>
+    //   <CardHeader>
+    //     <CardTitle className="flex items-center gap-2"><Share2 className="w-4 h-4"/>Inviter les invités</CardTitle>
+    //     <CardDescription>Partage le lien ou affiche un QR code imprimé.</CardDescription>
+    //   </CardHeader>
+    //   <CardContent>
+    //     <div className="flex items-center gap-2">
+    //       <Button onClick={share}>Partager le lien</Button>
+    //       <QRCodeButton />
+    //     </div>
+    //   </CardContent>
+    // </Card>
   );
 }
 
@@ -1054,7 +1054,7 @@ function QRCodeButton() {
   const download = () => { const canvas = canvasRef.current; if (!canvas) return; const a = document.createElement("a"); a.href = canvas.toDataURL("image/png"); a.download = "qr-code.png"; a.click(); };
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild><Button variant="outline">QR code</Button></DialogTrigger>
+      <DialogTrigger asChild><Button variant="outline" style={{backgroundColor: '#ffffffff', color: '#000000ff'}}>QR code</Button></DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>QR code</DialogTitle>
