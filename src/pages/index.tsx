@@ -428,20 +428,12 @@ export default function App() {
       const chan = supabase.channel('settings')
         .on('postgres_changes', {
           event: '*', schema: 'public', table: 'event_settings', filter: `event_id=eq.${EVENT_ID}`
-        }, (payload: any) => {
-          const row = payload.new ?? payload.old;
-          if (!row) return;
-          setState(prev => ({
-            ...prev,
-            settings: {
-              ...prev.settings,
-              eventTitle: row.event_title,
-              eventDate: row.event_date,
-              requireApproval: row.require_approval,
-              rotateSeconds: row.rotate_seconds,
-              showAuthorsByDefault: row.show_authors_by_default,
-            }
-          }));
+        }, () => {
+          fetchSettingsFromServer().then(items =>
+          {
+            setState(s => ({ ...s, settings: { ...s.settings, ...s } }));
+          }
+        ); 
         })
         .subscribe();
 
@@ -705,7 +697,7 @@ export default function App() {
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Wand2 className="w-5 h-5"/>Raconte une anecdote !</CardTitle>
-                <CardDescription>Partage un souvenir drôle ou mémorable (30–600 caractères).</CardDescription>
+                <CardDescription>Partage un souvenir drôle ou mémorable (0 caractères).</CardDescription>
               </CardHeader>
               <CardContent>
                 <SubmitForm onSubmit={submitAnecdote} />
@@ -813,7 +805,7 @@ export default function App() {
 function SubmitForm({ onSubmit }: { onSubmit: (payload: { text: string; author: string }) => void }) {
   const [text, setText] = useState("");
   const [author, setAuthor] = useState("");
-  const valid = text.trim().length >= 30 && text.trim().length <= 600 && author.trim().length >= 2;
+  const valid = text.trim().length >= 0 && text.trim().length <= 600 && author.trim().length >= 2;
 
   return (
     <form
@@ -844,7 +836,7 @@ function SubmitForm({ onSubmit }: { onSubmit: (payload: { text: string; author: 
       </div>
       <div className="flex items-center gap-2">
         <Button type="submit" disabled={!valid}><Plus className="w-4 h-4 mr-1"/>Envoyer</Button>
-        {!valid && <span className="text-xs text-slate-500">30–600 caractères, prénom requis.</span>}
+        {!valid && <span className="text-xs text-slate-500">0–600 caractères, prénom requis.</span>}
       </div>
     </form>
   );
