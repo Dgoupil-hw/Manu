@@ -91,6 +91,7 @@ const STORAGE_KEY = "anecparty:v1";
 
 function loadState(): { settings: SettingsType; anecdotes: Anecdote[] } {
   try {
+    console.log("toto");
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) throw new Error("empty");
     const parsed = JSON.parse(raw);
@@ -188,7 +189,7 @@ async function fetchAnecdotesFromServer(requireApproval: boolean, isAdmin: boole
 
   const { data: rows, error } = await base; 
   if (error) { console.error(error); return []; }
-
+  console.log(requireApproval);
   // Récupère toutes les réactions des anecdotes visibles et agrège côté client
   const ids = rows?.map((r : Anecdote) => r.id) ?? [];
   const { data: reacts, error: rerr } = ids.length
@@ -260,6 +261,44 @@ async function removeServer(id: string) {
   if (!supabase) return;
   await supabase.from("anecdotes").delete().eq("id", id);
 }
+
+// === Settings (shared) ===
+async function fetchSettingsFromServer(): Promise<SettingsType | null> {
+  if (!supabase) return null;
+  console.log("setting");
+  const { data, error } = await supabase
+    .from("event_settings")
+    .select("event_title,admin_pin,event_date,require_approval,rotate_seconds,show_authors_by_default")
+    .eq("event_id", EVENT_ID)
+    .single();
+  if (error || !data) { console.error(error); return null; }
+  
+  console.log("setting" + data.require_approval);
+  return {
+    eventTitle: data.event_title,
+    eventDate: data.event_date,
+    requireApproval: data.require_approval, 
+    adminPin: data.admin_pin, // tu gardes ton PIN côté UI (aucun secret serveur ici)
+    rotateSeconds: data.rotate_seconds,
+    showAuthorsByDefault: data.show_authors_by_default,
+  };
+}
+
+async function saveSettingsToServer(next: SettingsType) {
+  if (!supabase) return;
+  const payload = {
+    event_id: EVENT_ID,
+    event_title: next.eventTitle,
+    event_date: next.eventDate,
+    require_approval: next.requireApproval,
+    rotate_seconds: Number(next.rotateSeconds ?? 10),
+    show_authors_by_default: !!next.showAuthorsByDefault,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from("event_settings").upsert(payload);
+  if (error) throw error;
+}
+
 
 // ---------------- App ----------------
 export default function App() {
@@ -361,6 +400,11 @@ export default function App() {
       if (mounted) setState(s => ({ ...s, anecdotes: items }));
     })();
 
+    (async () => {
+      const s = await fetchSettingsFromServer();
+      if (s) setState(prev => ({ ...prev, settings: { ...prev.settings, ...s } }));
+    })();
+
     // 2) Abonnements Realtime incrémentaux
     const channel = supabase
       .channel("anecparty")
@@ -381,7 +425,27 @@ export default function App() {
       })
       .subscribe();
 
-    return () => { mounted = false; supabase.removeChannel(channel); };
+      const chan = supabase.channel('settings')
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'event_settings', filter: `event_id=eq.${EVENT_ID}`
+        }, (payload: any) => {
+          const row = payload.new ?? payload.old;
+          if (!row) return;
+          setState(prev => ({
+            ...prev,
+            settings: {
+              ...prev.settings,
+              eventTitle: row.event_title,
+              eventDate: row.event_date,
+              requireApproval: row.require_approval,
+              rotateSeconds: row.rotate_seconds,
+              showAuthorsByDefault: row.show_authors_by_default,
+            }
+          }));
+        })
+        .subscribe();
+
+    return () => { mounted = false; supabase.removeChannel(channel); supabase.removeChannel(chan);  };
 
   }, [isAdmin, state.settings.requireApproval]);
 
@@ -560,7 +624,7 @@ export default function App() {
                         <div className="text-sm text-slate-500">Si activé, un admin doit approuver chaque anecdote.</div>
                       </div>
                       <Switch checked={state.settings.requireApproval}
-                              onCheckedChange={(v) => setState(s => ({...s, settings: {...s.settings, requireApproval: v}}))} />
+                              onCheckedChange={async (v) => {setState(s => ({...s, settings: {...s.settings, requireApproval: v}}));console.log(state.settings);await saveSettingsToServer({ ...state.settings, requireApproval: v })}} />
                     </div>
 
                     <div className="flex items-center justify-between p-3 rounded-xl border">
@@ -598,6 +662,25 @@ export default function App() {
                         </label>
                         <Button variant="destructive" size="sm" onClick={resetAll}>Réinitialiser</Button>
                       </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-2"> 
+                      <Button
+                        onClick={async () => {
+                          try {
+                            console.log("try");
+                            await saveSettingsToServer(state.settings);
+                            console.log("try2");
+                            // synchroniser l'affichage local au cas où
+                            const s = await fetchSettingsFromServer();
+                            console.log("try3");
+                            if (s) setState(prev => ({ ...prev, settings: { ...prev.settings, ...s } }));
+                          } catch {
+                            toast({ title: "Échec", description: "Impossible d'enregistrer les réglages." });
+                          }
+                        }}
+                      >
+                        Enregistrer
+                      </Button>
                     </div>
                   </div>
                 )}
