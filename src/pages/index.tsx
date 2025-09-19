@@ -795,7 +795,7 @@ export default function App() {
         Fait avec ❤️ pour une soirée mémorable.
       </footer>
       <div className="p-4 bg-white rounded-xl justify-center flex">
-          <QRCode value={"https://manu-kappa-virid.vercel.app/"} size={512} />
+          <QRCode value={"https://manu-kappa-virid.vercel.app/"} size={128} />
         </div>
     </div>
   );
