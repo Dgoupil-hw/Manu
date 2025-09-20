@@ -131,7 +131,7 @@ function saveState(s: { settings: SettingsType; anecdotes: Anecdote[] }) {
 
 // ---------------- Utils ----------------
 const INVITES = [
-  "Didier","Brigitte","Raymond","Maryvonne","Manuel 🎉 40 ans","Séverine","David","Caroline","Mathieu G","Lucie","Sylvain","Céline","Bruno","Nadège","Laurent","Marie-Annick","Max","Jennifer","Alex","Marie","Manu Goudal","Anne So","Seb","Stéphane","Aurélie","Anne-Charlotte","Vincent","Anne","Damien Bi","Florian","Julie","Damien Bertin","Morgane","Paul","Matthieu H","Claire"
+  "Didier","Brigitte","Raymond","Maryvonne","Manuel 🎉 40 ans","Séverine","David","Caroline","Mathieu G","Lucie","Sylvain","Céline","Bruno","Nadège","Laurent","Marie-Annick","Max","Jennifer","Alex","Marie","Emmanuel","Anne So","Seb","Stéphane","Aurélie","Anne-Charlotte","Vincent","Anne","Damien Bi","Florian","Julie","Damien Bertin","Morgane","Paul","Matthieu H","Claire"
 ].sort((a,b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
 
 const EMOJIS = ["👍","😂","😯","❤️"]; // réactions disponibles
